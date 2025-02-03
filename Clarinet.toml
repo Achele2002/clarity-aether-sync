@@ -8,6 +8,10 @@ requirements = []
 path = "contracts/aether-sync.clar"
 depends_on = []
 
+[contracts.sync-history]
+path = "contracts/sync-history.clar"
+depends_on = []
+
 [repl]
 costs_version = 2
 parser_version = 2
