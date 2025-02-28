@@ -31,7 +31,7 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: "Test sync state recording",
+  name: "Test sync state recording with version validation",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const deployer = accounts.get("deployer")!;
     const client = accounts.get("wallet_1")!;
@@ -43,7 +43,7 @@ Clarinet.test({
       )
     ]);
     
-    // Record sync
+    // Record initial sync
     let block = chain.mineBlock([
       Tx.contractCall("aether-sync", "record-sync",
         [
@@ -55,5 +55,18 @@ Clarinet.test({
       )
     ]);
     assertEquals(block.receipts[0].result, '(ok true)');
+
+    // Test invalid version sequence
+    block = chain.mineBlock([
+      Tx.contractCall("aether-sync", "record-sync",
+        [
+          types.uint(3), // Skipping version 2
+          types.buff(Buffer.from("0".repeat(64), "hex")),
+          types.uint(1)
+        ],
+        client.address
+      )
+    ]);
+    assertEquals(block.receipts[0].result.includes('err'), true);
   }
 });
