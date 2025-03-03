@@ -7,6 +7,8 @@
 (define-constant err-invalid-version (err u102))
 (define-constant err-version-gap (err u103))
 (define-constant err-concurrent-update (err u104))
+(define-constant err-invalid-page-size (err u105))
+(define-constant err-invalid-data-hash (err u106))
 
 ;; Data structures
 (define-map sync-states
@@ -36,6 +38,15 @@
     version: uint,
     timestamp: uint
   }
+)
+
+;; Helper functions
+(define-private (is-valid-hash (hash (buff 32)))
+  (is-eq (len hash) u32)
+)
+
+(define-private (check-version-gap (current-version uint) (new-version uint))
+  (< (- new-version current-version) u10)
 )
 
 ;; Authorization
@@ -81,6 +92,7 @@
       (and
         (> version (get version current-state))
         (is-eq previous-version (get version current-state))
+        (check-version-gap (get version current-state) version)
       )
     ) err-invalid-version)
   )
@@ -98,6 +110,7 @@
       (is-authorized (default-to false (get authorized (map-get? authorized-clients {client: client}))))
     )
     (asserts! is-authorized err-unauthorized)
+    (asserts! (is-valid-hash data-hash) err-invalid-data-hash)
     (asserts! (validate-version client version previous-version) err-invalid-version)
     
     (record-event client "sync-recorded" version)
@@ -115,6 +128,22 @@
   )
 )
 
+;; Enhanced event pagination
+(define-read-only (get-latest-events (start-id uint) (page-size uint))
+  (begin
+    (asserts! (and (>= page-size u1) (<= page-size u50)) err-invalid-page-size)
+    (let
+      (
+        (max-id (var-get last-event-id))
+        (actual-start (if (> start-id max-id) max-id start-id))
+      )
+      (filter map-get? sync-events
+        (map - (list actual-start (- actual-start u1) (- actual-start u2)))
+      )
+    )
+  )
+)
+
 ;; Read operations
 (define-read-only (get-sync-state (client principal))
   (map-get? sync-states {client: client})
@@ -122,13 +151,4 @@
 
 (define-read-only (is-client-authorized (client principal))
   (default-to false (get authorized (map-get? authorized-clients {client: client})))
-)
-
-(define-read-only (get-latest-events (start-id uint) (count uint))
-  (let
-    ((max-id (var-get last-event-id)))
-    (filter map-get? sync-events
-      (map + (list start-id (+ start-id u1) (+ start-id u2)))
-    )
-  )
 )
