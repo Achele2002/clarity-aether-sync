@@ -31,7 +31,7 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: "Test sync state recording with version validation",
+  name: "Test sync state recording with enhanced validation",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const deployer = accounts.get("deployer")!;
     const client = accounts.get("wallet_1")!;
@@ -43,7 +43,7 @@ Clarinet.test({
       )
     ]);
     
-    // Record initial sync
+    // Test valid sync
     let block = chain.mineBlock([
       Tx.contractCall("aether-sync", "record-sync",
         [
@@ -56,12 +56,25 @@ Clarinet.test({
     ]);
     assertEquals(block.receipts[0].result, '(ok true)');
 
-    // Test invalid version sequence
+    // Test invalid version gap
     block = chain.mineBlock([
       Tx.contractCall("aether-sync", "record-sync",
         [
-          types.uint(3), // Skipping version 2
+          types.uint(12), // Too big gap
           types.buff(Buffer.from("0".repeat(64), "hex")),
+          types.uint(1)
+        ],
+        client.address
+      )
+    ]);
+    assertEquals(block.receipts[0].result.includes('err'), true);
+
+    // Test invalid hash
+    block = chain.mineBlock([
+      Tx.contractCall("aether-sync", "record-sync",
+        [
+          types.uint(2),
+          types.buff(Buffer.from("0".repeat(62), "hex")), // Invalid hash length
           types.uint(1)
         ],
         client.address
